@@ -1,4 +1,4 @@
-FROM php:7.2-fpm
+FROM php:7.2.34-cli-stretch
 
 # Use the default production configuration
 #RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
@@ -19,14 +19,18 @@ RUN apt-get update && apt-get install -y \
     docker-php-ext-install zip; \
     docker-php-ext-enable yaml;
 
+RUN pecl install xdebug-2.8.1 \
+    && docker-php-ext-enable xdebug;
 
 COPY --from=michaelperrin/wkhtmltopdf /usr/local/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf
 
 RUN apt-get update && apt-get install -y \
     libfontconfig1 libxrender1 xvfb libxtst6 xz-utils;
 
-
 COPY php.ini $PHP_INI_DIR/php.ini
 
 # Override with custom opcache settings
 COPY opcache.ini $PHP_INI_DIR/conf.d/
+
+
+ENTRYPOINT ["tail", "-f", "/dev/null"]

@@ -1,99 +1,61 @@
-version:                   '3'
 services:
   traefik:
-    image:                 traefik:v2.2
+    container_name: traefik
+    image: traefik:v2.2
     command:
       - --entrypoints.web.address=:80
+      - --entryPoints.websecure.address=:443
       - --providers.docker
       - --api
+      - --api.insecure=true
       - --accesslog=true
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
     ports:
       - 80:80
+      - 443:443
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./conf/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./certs:/etc/certs:ro
     labels:
       # Конфиг дешборда
-      - traefik.http.routers.api.rule=Host(`${TRAEFIK_DASHBOARD_HOST}`)
+      - traefik.http.routers.api.rule=Host(`traefik.dock`)
       - traefik.http.routers.api.service=api@internal
-      - traefik.http.routers.api.middlewares=auth
-      - traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_USER}:$$apr1$$q8eZFHjF$$Fvmkk//V6Btlaf2i/ju5n/
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls=true
     networks:
       - traefik
     restart: always
     depends_on:
       - portainer
-      - php-fpm
-      - nginx
-  nginx:
-    build:                 ./docker/nginx
-    expose:
-      - 80
-    volumes:
-      - ../:/var/www:delegated
-      - ./conf/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./conf/nginx/sites-enabled:/etc/nginx/sites-enabled
-    labels:
-      - traefik.enable=true
-      - traefik.frontend.rule=${NGINX_HOSTS}
-      - traefik.http.routers.docker_web-nginx.rule=HostRegexp(`opspost.dock`,`{subdomain:[a-z]+}.wp.dock`)
-    command:               /bin/sh -c "/usr/local/bin/wait && nginx -g 'daemon off;'"
-    environment:
-      WAIT_HOSTS:          db:3306, php-fpm:9000
-      WAIT_HOSTS_TIMEOUT:  100
-      WAIT_SLEEP_INTERVAL: 3
-    links:
-      - php-fpm
-    depends_on:
-      - php-fpm
-      - db
-    networks:
-      - traefik
-    restart:               always
-  php-fpm:
-    build:                 ./docker/php-fpm
-    labels:
-      - traefik.enable=false
-    volumes:
-      - ../:/var/www:delegated
-    networks:
-      - traefik
-    ulimits:
-      memlock:
-        soft:              -1
-        hard:              -1
-    restart:               always
-  db:
-    image:                 mariadb
-    restart:               always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_USER:          ${MYSQL_USER}
-      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
-    volumes:
-      - ./tmp/mysql:/var/lib/mysql
-    ports:
-      - 33306:3306
-    labels:
-      - traefik.enable=false
-    networks:
-      - traefik
   portainer:
+    image: portainer/portainer-ce:2.33.1-alpine
+    restart: always
     expose:
       - 9000
     networks:
       - traefik
     labels:
       - traefik.enable=true
+      # HTTP
       - traefik.http.routers.portainer.rule=Host(`portainer.dock`)
+      - traefik.http.routers.portainer.entrypoints=web
+      - traefik.http.routers.portainer.service=portainer-svc
+      # HTTPS
+      - traefik.http.routers.portainer-secure.rule=Host(`portainer.dock`)
+      - traefik.http.routers.portainer-secure.entrypoints=websecure
+      - traefik.http.routers.portainer-secure.tls=true
+      - traefik.http.routers.portainer-secure.service=portainer-svc
+      # Общий сервис
+      - traefik.http.services.portainer-svc.loadbalancer.server.port=9000
       - traefik.docker.network=traefik
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
-    image:               portainer/portainer
-    restart:               always
 networks:
   traefik:
-    external:              true
+    external: true
 volumes:
   portainer_data:
-    driver:                local
+    driver: local

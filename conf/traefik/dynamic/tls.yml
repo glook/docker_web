@@ -1,0 +1,8 @@
+tls:
+  certificates:
+    - certFile: /etc/certs/dock.crt
+      keyFile: /etc/certs/dock.key
+    - certFile: /etc/certs/tp-dock.crt
+      keyFile: /etc/certs/tp-dock.key
+    - certFile: /etc/certs/opspost-dock.crt
+      keyFile: /etc/certs/opspost-dock.key
